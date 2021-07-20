@@ -6,8 +6,8 @@
 
 #include "xiosysincludes.h"
 #if WITH_OPENSSL	/* make this address configure dependend */
-// #include <openssl/conf.h>
-// #include <openssl/x509v3.h>
+#include <openssl/conf.h>
+#include <openssl/x509v3.h>
 
 #include "xioopen.h"
 

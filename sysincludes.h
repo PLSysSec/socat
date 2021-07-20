@@ -181,9 +181,9 @@
 #  endif
 #endif /* WITH_READLINE */
 #if WITH_OPENSSL
-// #include <openssl/ssl.h>
-// #include <openssl/err.h>
-// #include <openssl/rand.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
 #endif
 
 #endif /* !defined(__sysincludes_h_included) */

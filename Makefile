@@ -28,7 +28,7 @@ SYSDEFS =
 CPPFLAGS = -I. 
 #0 INCLS = -I. @V_INCL@
 DEFS = -DHAVE_CONFIG_H
-LIBS = -lrt -lutil  -lcrypto
+LIBS = -lrt -lutil  -lssl -lcrypto
 LDFLAGS = 
 
 INSTALL = /usr/bin/install -c
@@ -91,9 +91,10 @@ OSFILES = Config/Makefile.Linux-2-6-24 Config/config.Linux-2-6-24.h \
 ARCHIVE_PATH:=../../build/cargo/debug/librlbox_lucet_sandbox.a
 INTEGRATION_HEADER_PATH:=../../include
 RLBOX_HEADER_PATH:=../../build/_deps/rlbox-src/code/include
-INCLUDE_FLAGS:=-I $(RLBOX_HEADER_PATH) -I $(INTEGRATION_HEADER_PATH) -Wl,--whole-archive $(ARCHIVE_PATH)
+INCLUDE_FLAGS:=-I $(RLBOX_HEADER_PATH) -I $(INTEGRATION_HEADER_PATH) #-Wl,--whole-archive $(ARCHIVE_PATH)
 MISC_FLAGS:= -Wl,--no-whole-archive -rdynamic -lpthread -lrt -ldl
-RLBOX_FLAGS:= $(INCLUDE_FLAGS) $(MISC_FLAGS) 
+RLBOX_FLAGS:= $(MISC_FLAGS)  $(INCLUDE_FLAGS) 
+
 
 all: progs doc
 
