@@ -22,22 +22,29 @@ srcdir = .
 
 
 CC = gcc
+CXX = g++
 CCOPTS = $(CCOPT)
 
 SYSDEFS = 
 CPPFLAGS = -I. 
 #0 INCLS = -I. @V_INCL@
 DEFS = -DHAVE_CONFIG_H
-LIBS = -lrt -lutil  -lssl -lcrypto
+LIBS = -lrt -lutil -lcrypto -lssl
 LDFLAGS = 
 
 INSTALL = /usr/bin/install -c
 
 #OBJ = $(CSRC:.c=.o) $(GENSRC:.c=.o) 
 
+# ARCHIVE_PATH:=../../build/cargo/debug/librlbox_lucet_sandbox.a
+INTEGRATION_HEADER_PATH:=../../include
+RLBOX_HEADER_PATH:=../../build/_deps/rlbox-src/code/include
+INCLUDE_FLAGS:=-I $(RLBOX_HEADER_PATH) -I $(INTEGRATION_HEADER_PATH) #-Wl,--whole-archive $(ARCHIVE_PATH)
+MISC_FLAGS:= -Wl,--no-whole-archive -rdynamic #-lpthread -lrt -ldl
+RLBOX_FLAGS:= $(MISC_FLAGS)  $(INCLUDE_FLAGS) 
 
 #0 CFLAGS = -O -D_GNU_SOURCE -Wall -Wno-parentheses $(CCOPTS) $(DEFS) $(INCLS)
-CFLAGS = -O -D_GNU_SOURCE -Wall -Wno-parentheses $(CCOPTS) $(DEFS) $(CPPFLAGS)
+CFLAGS = -O -D_GNU_SOURCE -Wall -Wno-parentheses $(CCOPTS) $(DEFS) $(CPPFLAGS) 
 CLIBS = $(LIBS)
 #CLIBS = $(LIBS) -lm -lefence
 XIOSRCS = xioinitialize.c xiohelp.c xioparam.c xiodiag.c xioopen.c xioopts.c \
@@ -88,12 +95,7 @@ OSFILES = Config/Makefile.Linux-2-6-24 Config/config.Linux-2-6-24.h \
 	Config/Makefile.MacOSX-10-5 Config/config.MacOSX-10-5.h \
 	Config/Makefile.DragonFly-2-8-2 Config/config.DragonFly-2-8-2.h
 
-ARCHIVE_PATH:=../../build/cargo/debug/librlbox_lucet_sandbox.a
-INTEGRATION_HEADER_PATH:=../../include
-RLBOX_HEADER_PATH:=../../build/_deps/rlbox-src/code/include
-INCLUDE_FLAGS:=-I $(RLBOX_HEADER_PATH) -I $(INTEGRATION_HEADER_PATH) #-Wl,--whole-archive $(ARCHIVE_PATH)
-MISC_FLAGS:= -Wl,--no-whole-archive -rdynamic -lpthread -lrt -ldl
-RLBOX_FLAGS:= $(MISC_FLAGS)  $(INCLUDE_FLAGS) 
+
 
 
 all: progs doc
@@ -120,7 +122,7 @@ depend: $(CFILES) $(HFILES)
 	makedepend $(SYSDEFS) $(CFILES)
 
 socat: socat.o libxio.a
-	$(CC) $(CFLAGS) $(RLBOX_FLAGS) $(LDFLAGS) -o $@ socat.o libxio.a $(CLIBS)
+	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ socat.o libxio.a $(CLIBS) -lpthread -ldl 
 
 PROCAN_OBJS=procan_main.o procan.o procan-cdefs.o hostan.o error.o sycls.o sysutils.o utils.o vsnprintf_r.o snprinterr.o
 procan: $(PROCAN_OBJS)
@@ -131,7 +133,9 @@ filan: $(FILAN_OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FILAN_OBJS) $(CLIBS)
 
 libxio.a: $(XIOOBJS) $(UTLOBJS)
-	$(AR) r $@ $(XIOOBJS) $(UTLOBJS)
+	$(CXX) -std=c++17 $(RLBOX_FLAGS) -c -o rlbox_openssl.o rlbox_openssl.cpp
+	$(CXX) -std=c++17 $(RLBOX_FLAGS) -c -E rlbox_openssl.cpp > out.cpp
+	$(AR) r $@ $(XIOOBJS) $(UTLOBJS) rlbox_openssl.o
 	$(RANLIB) $@
 
 doc: doc/xio.help
