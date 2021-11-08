@@ -67,6 +67,90 @@ const COMP_METHOD *rlbox_SSL_get_current_compression(SSL *ssl);
 const COMP_METHOD *rlbox_SSL_get_current_expansion(SSL *ssl);
 const char *rlbox_SSL_COMP_get_name(const COMP_METHOD *comp);
 
+int rlbox_SSL_get_error(SSL *ssl, int ret);
+SSL_CIPHER *rlbox_SSL_get_current_cipher(SSL *ssl);
+const char *rlbox_SSL_get_cipher_name(SSL *s);
+long rlbox_SSL_CTX_set_options(SSL_CTX *ctx, long options);
+long rlbox_SSL_CTX_ctrl(SSL_CTX *ctx, int cmd, long larg, void *parg);
+
+//rlbox_SSL_COMP_get_compression_methods
+STACK_OF(SSL_COMP) *rlbox_SSL_COMP_get_compression_methods(void);
+//rlbox_SSL_CTX_set_default_verify_paths
+int rlbox_SSL_CTX_set_default_verify_paths(SSL_CTX *ctx);
+const char *rlbox_SSL_CIPHER_get_name(SSL_CIPHER *cipher);
+
+long rlbox_SSL_CTX_clear_mode(SSL_CTX *ctx, long mode);
+long rlbox_SSL_CTX_get_mode(SSL_CTX *ctx);
+long rlbox_SSL_CTX_set_tmp_ecdh(SSL_CTX *ctx, EC_KEY *ecdh);
+
+DH* rlbox_DH_new(void);
+void rlbox_DH_free(DH *dh);
+
+BIGNUM *rlbox_BN_bin2bn(const unsigned char *s, int len, BIGNUM *ret);
+int rlbox_DH_set0_pqg(DH *dh, BIGNUM *p, BIGNUM *q, BIGNUM *g);
+    
+
+EC_KEY *rlbox_EC_KEY_new_by_curve_name(int nid);
+
+int rlbox_BIO_free(BIO *a);
+
+
+int rlbox_X509_set_subject_name(X509 *x, X509_NAME *name);
+X509_NAME *rlbox_X509_get_issuer_name(X509 *x);
+int rlbox_X509_NAME_print_ex(BIO *out, X509_NAME *nm, int indent, unsigned long flags);
+void rlbox_X509_free(X509 *a);
+int rlbox_X509_get_ext_count(X509 *x);
+X509_NAME_ENTRY *rlbox_X509_NAME_get_entry(X509_NAME *name, int loc);
+ASN1_OBJECT * rlbox_X509_NAME_ENTRY_get_object(X509_NAME_ENTRY *ne);
+ASN1_STRING * rlbox_X509_NAME_ENTRY_get_data(X509_NAME_ENTRY *ne);
+const unsigned char * rlbox_ASN1_STRING_get0_data(ASN1_STRING *x);
+int rlbox_OBJ_obj2nid(ASN1_OBJECT *o);
+const char *  rlbox_OBJ_nid2ln(int n);
+const char *  rlbox_OBJ_nid2sn(int n);
+
+
+
+int rlbox_X509_NAME_entry_count(X509_NAME *name);
+int rlbox_X509_NAME_get_index_by_NID(X509_NAME *name, int nid, int lastpos);
+X509_NAME *rlbox_X509_get_subject_name(X509 *x);
+X509_EXTENSION * rlbox_X509_get_ext (X509 *x, int loc);
+ASN1_OBJECT *rlbox_X509_EXTENSION_get_object(X509_EXTENSION *ex);
+void *rlbox_X509_get_ext_d2i(const X509 *x, int nid, int *crit, int *idx);
+
+
+
+BIO_METHOD *rlbox_BIO_s_mem(void);
+BIO *rlbox_BIO_new(BIO_METHOD *type);
+long rlbox_BIO_get_mem_data(BIO *bp, char** ptpr);
+//long BIO_ctrl(BIO *bp, int cmd, long larg, void *parg);
+
+/*
+
+X509_NAME *X509_get_subject_name(const X509 *x);
+
+int X509_NAME_print_ex(BIO *out, X509_NAME *nm, int indent, unsigned long flags);
+
+X509_NAME *X509_get_issuer_name(const X509 *x);
+
+int X509_get_ext_count(const X509 *x);
+
+void X509_free(X509 *a);
+
+X509_NAME_ENTRY *X509_NAME_get_entry(X509_NAME *name, int loc);
+
+
+
+int X509_NAME_entry_count(const X509_NAME *name);
+int X509_NAME_get_index_by_NID(X509_NAME *name, int nid, int lastpos);
+X509_NAME *X509_get_subject_name(const X509 *x);
+X509_EXTENSION * X509_get_ext (X509 *x, int loc)
+ASN1_OBJECT *X509_EXTENSION_get_object(X509_EXTENSION *ex);
+void *X509_get_ext_d2i(const X509 *x, int nid, int *crit, int *idx);
+
+
+*/
+
+
 #ifdef __cplusplus
 }
 #endif

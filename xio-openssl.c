@@ -16,6 +16,7 @@
 #include "xio-listen.h"
 #include "xio-ipapp.h"
 #include "xio-openssl.h"
+#include "rlbox_openssl.h"
 
 /* the openssl library requires a file descriptor for external communications.
    so our best effort is to provide any possible kind of un*x file descriptor 
@@ -147,7 +148,8 @@ int xio_reset_fips_mode(void) {
 #endif
 
 static void openssl_conn_loginfo(SSL *ssl) {
-   Notice1("SSL connection using %s", SSL_get_cipher(ssl));
+   Notice1("SSL connection using %s", rlbox_SSL_CIPHER_get_name(rlbox_SSL_get_current_cipher(ssl)));
+   //Notice1("SSL connection using %s", SSL_get_cipher(ssl));
 
 #if OPENSSL_VERSION_NUMBER >= 0x00908000L && !defined(OPENSSL_NO_COMP)
    {
@@ -156,10 +158,10 @@ static void openssl_conn_loginfo(SSL *ssl) {
       comp = sycSSL_get_current_compression(ssl);
       expansion = sycSSL_get_current_expansion(ssl);
 
-      Notice1("SSL connection compression \"%s\"",
-              comp?sycSSL_COMP_get_name(comp):"none");
-      Notice1("SSL connection expansion \"%s\"",
-              expansion?sycSSL_COMP_get_name(expansion):"none");
+      // Notice1("SSL connection compression \"%s\"",
+      //         comp?sycSSL_COMP_get_name(comp):"none");
+      // Notice1("SSL connection expansion \"%s\"",
+      //         expansion?sycSSL_COMP_get_name(expansion):"none");
    }
 #endif
 }
@@ -604,7 +606,7 @@ int _xioopen_openssl_listen(struct single *xfd,
    /* connect via SSL by performing handshake */
    if ((ret = sycSSL_accept(xfd->para.openssl.ssl)) <= 0) {
       /*if (ERR_peek_error() == 0) Msg(level, "SSL_accept() failed");*/
-      errint = SSL_get_error(xfd->para.openssl.ssl, ret);
+      errint = rlbox_SSL_get_error(xfd->para.openssl.ssl, ret);
       switch (errint) {
       case SSL_ERROR_NONE:
 	 Msg(level, "ok"); break;
@@ -667,7 +669,7 @@ static int openssl_setup_compression(SSL_CTX *ctx, char *method)
    /* Getting the stack of compression methods has the intended side-effect of
     * initializing the SSL library's compression part.
     */
-   comp_methods = SSL_COMP_get_compression_methods();
+   comp_methods = rlbox_SSL_COMP_get_compression_methods();
    if (!comp_methods) {
       Info("OpenSSL built without compression support");
       return STAT_OK;
@@ -682,7 +684,7 @@ static int openssl_setup_compression(SSL_CTX *ctx, char *method)
       /* Disable compression */
 #ifdef SSL_OP_NO_COMPRESSION
       Info("Disabling OpenSSL compression");
-      SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
+      rlbox_SSL_CTX_set_options(ctx, SSL_OP_NO_COMPRESSION);
 #else
       /* SSL_OP_NO_COMPRESSION was only introduced in OpenSSL 0.9.9 (released
        * as 1.0.0). Removing all compression methods is a work-around for
@@ -716,6 +718,7 @@ int
 			    const char *opt_cert,
 			    SSL_CTX **ctx)
 {
+   printf("_xiopen_openssl_prepare Start!\n");
    bool opt_fips = false;
    const SSL_METHOD *method = NULL;
    char *me_str = NULL;	/* method string */
@@ -809,7 +812,7 @@ int
 	 }
       } else {
 #if   HAVE_TLS_client_method
-	 method = TLS_client_method();
+	 method = rlbox_SSLv23_client_method();
 #elif HAVE_SSLv23_client_method
 	 method = sycSSLv23_client_method();
 #elif HAVE_TLSv1_2_client_method
@@ -863,7 +866,7 @@ int
 	 }
       } else {
 #if   HAVE_TLS_server_method
-	 method = TLS_server_method();
+	 method = rlbox_SSLv23_server_method();
 #elif HAVE_SSLv23_server_method
 	 method = sycSSLv23_server_method();
 #elif HAVE_TLSv1_2_server_method
@@ -919,7 +922,7 @@ int
       /*ERR_clear_error;*/
       return STAT_RETRYLATER;
    }
-
+   printf("openssl_prepare starting DH operations\n");
    {
       static unsigned char dh2048_p[] = {
 	 0x00,0xdc,0x21,0x64,0x56,0xbd,0x9c,0xb2,0xac,0xbe,0xc9,0x98,0xef,0x95,0x3e,
@@ -948,12 +951,12 @@ int
       BIGNUM *p = NULL, *g = NULL;
       unsigned long err;
 
-      dh = DH_new();
-      p = BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
-      g = BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
+      dh = rlbox_DH_new();
+      p = rlbox_BN_bin2bn(dh2048_p, sizeof(dh2048_p), NULL);
+      g = rlbox_BN_bin2bn(dh2048_g, sizeof(dh2048_g), NULL);
       if (!dh || !p || !g) {
          if (dh)
-            DH_free(dh);
+            rlbox_DH_free(dh);
          if (p)
             BN_free(p);
          if (g)
@@ -965,9 +968,10 @@ int
          Error("dh2048 setup failed");
          goto cont_out;
       }
+      printf("openssl_prepare DH operations checkpoint 1\n");
 #if HAVE_DH_set0_pqg
-      if (!DH_set0_pqg(dh, p, NULL, g)) {
-	      DH_free(dh);
+      if (!rlbox_DH_set0_pqg(dh, p, NULL, g)) {
+	      rlbox_DH_free(dh);
 	      BN_free(p);
 	      BN_free(g);
 	      goto cont_out;
@@ -976,6 +980,7 @@ int
       dh->p = p;
       dh->g = g;
 #endif /* HAVE_DH_set0_pqg */
+      printf("openssl_prepare DH operations checkpoint 2\n");
       if (sycSSL_CTX_set_tmp_dh(*ctx, dh) <= 0) {
          while (err = ERR_get_error()) {
             Warn3("SSL_CTX_set_tmp_dh(%p, %p): %s", *ctx, dh,
@@ -984,10 +989,11 @@ int
          Error2("SSL_CTX_set_tmp_dh(%p, %p) failed", *ctx, dh);
       }
       /* p & g are freed by DH_free() once attached */
-      DH_free(dh);
+      rlbox_DH_free(dh);
 cont_out:
       ;
    }
+   printf("openssl_prepare DH operations checkpoint 3\n");
 
 #if HAVE_TYPE_EC_KEY	/* not on Openindiana 5.11 */
    {
@@ -1003,13 +1009,14 @@ cont_out:
       }
 #endif
       nid = NID_X9_62_prime256v1;
-      ecdh = EC_KEY_new_by_curve_name(nid);
+      ecdh = rlbox_EC_KEY_new_by_curve_name(nid);
+      // ecdh = EC_KEY_new_by_curve_name(nid);
       if (NULL == ecdh) {
 	 Error("openssl: failed to set ECDHE parameters");
 	 return -1;
       }
-
-      SSL_CTX_set_tmp_ecdh(*ctx, ecdh);
+      // SSL_CTX_set_tmp_ecdh(*ctx, ecdh);
+      rlbox_SSL_CTX_set_tmp_ecdh(*ctx, ecdh);
    }
 #endif /* HAVE_TYPE_EC_KEY */
 
@@ -1023,15 +1030,16 @@ cont_out:
    }
 #endif
 
+    printf("openssl_prepare starting mode operations\n");
    /* It seems that OpenSSL-1.1.1 presets the mode differently.
       Without correction socat might hang in SSL_read() */
    {
       long mode = 0;
-      mode = SSL_CTX_get_mode(*ctx);
+      mode = rlbox_SSL_CTX_get_mode(*ctx);
       if (mode & SSL_MODE_AUTO_RETRY) {
 	 Info("SSL_CTX mode has SSL_MODE_AUTO_RETRY set. Correcting..");
 	 Debug1("SSL_CTX_clean_mode(%p, SSL_MODE_AUTO_RETRY)", *ctx);
-	 SSL_CTX_clear_mode(*ctx, SSL_MODE_AUTO_RETRY);
+	 rlbox_SSL_CTX_clear_mode(*ctx, SSL_MODE_AUTO_RETRY);
       }
    }
 
@@ -1048,10 +1056,11 @@ cont_out:
       }
 #ifdef HAVE_SSL_CTX_set_default_verify_paths
    } else {
-      SSL_CTX_set_default_verify_paths(*ctx);
+      rlbox_SSL_CTX_set_default_verify_paths(*ctx);
 #endif
    }
 
+   printf("openssl_prepare starting cert operations\n");
    if (opt_cert) {
       BIO *bio;
       DH *dh;
@@ -1085,7 +1094,7 @@ cont_out:
 	 if ((dh = sycPEM_read_bio_DHparams(bio, NULL, NULL, NULL)) == NULL) {
 	    Info1("PEM_read_bio_DHparams(%p, NULL, NULL, NULL): error", bio);
 	 } else {
-	    BIO_free(bio);
+	    rlbox_BIO_free(bio);
 	    if (sycSSL_CTX_set_tmp_dh(*ctx, dh) <= 0) {
 	       while (err = ERR_get_error()) {
 		  Warn3("SSL_CTX_set_tmp_dh(%p, %p): %s", *ctx, dh,
@@ -1096,6 +1105,8 @@ cont_out:
 	 }
       }
    }
+
+    printf("openssl_prepare starting connect-config operations\n");
 
    /* set pre openssl-connect options */
    /* SSL_CIPHERS */
@@ -1112,6 +1123,8 @@ cont_out:
       }
    }
 
+   printf("openssl_prepare starting verification operations\n");
+
    if (*opt_ver) {
       sycSSL_CTX_set_verify(*ctx,
 			    SSL_VERIFY_PEER| SSL_VERIFY_FAIL_IF_NO_PEER_CERT,
@@ -1121,7 +1134,7 @@ cont_out:
 			    SSL_VERIFY_NONE,
 			    NULL);
    }
-
+   printf("_xiopen_openssl_prepare Done!\n");
    return STAT_OK;
 }
 
@@ -1254,13 +1267,13 @@ static int openssl_delete_cert_info(void) {
    create environment variable with complete info, eg:
    SOCAT_OPENSSL_X509_SUBJECT */
 static int openssl_setenv_cert_name(const char *field, X509_NAME *name) {
-   BIO *bio = BIO_new(BIO_s_mem());
+   BIO *bio = rlbox_BIO_new(rlbox_BIO_s_mem());
    char *buf = NULL, *str;
    size_t len;
-   X509_NAME_print_ex(bio, name, 0, XN_FLAG_ONELINE&~ASN1_STRFLGS_ESC_MSB);	/* rc not documented */
-   len = BIO_get_mem_data (bio, &buf);
+   rlbox_X509_NAME_print_ex(bio, name, 0, XN_FLAG_ONELINE&~ASN1_STRFLGS_ESC_MSB);	/* rc not documented */
+   len = rlbox_BIO_get_mem_data (bio, &buf);
    if ((str = Malloc(len+1)) == NULL) {
-      BIO_free(bio);
+      rlbox_BIO_free(bio);
       return -1;
    }
    memcpy(str, buf, len);
@@ -1268,7 +1281,7 @@ static int openssl_setenv_cert_name(const char *field, X509_NAME *name) {
    Info2("SSL peer cert %s: \"%s\"", field, buf);
    xiosetenv2("OPENSSL_X509", field, str, 1, NULL);
    free(str);
-   BIO_free(bio);
+   rlbox_BIO_free(bio);
    return 0;
 }
 
@@ -1278,7 +1291,7 @@ static int openssl_setenv_cert_name(const char *field, X509_NAME *name) {
 */
 static int openssl_setenv_cert_fields(const char *field, X509_NAME *name) {
    int n, i;
-   n = X509_NAME_entry_count(name);
+   n = rlbox_X509_NAME_entry_count(name);
    /* extract fields of cert name */
    for (i = 0; i < n; ++i) {
       X509_NAME_ENTRY *entry;
@@ -1286,20 +1299,20 @@ static int openssl_setenv_cert_fields(const char *field, X509_NAME *name) {
       ASN1_STRING *data;
       const unsigned char *text;
       int nid;
-      entry = X509_NAME_get_entry(name, i);
-      obj  = X509_NAME_ENTRY_get_object(entry);
-      data = X509_NAME_ENTRY_get_data(entry);
-      nid  = OBJ_obj2nid(obj);
+      entry = rlbox_X509_NAME_get_entry(name, i);
+      obj  = rlbox_X509_NAME_ENTRY_get_object(entry);
+      data = rlbox_X509_NAME_ENTRY_get_data(entry);
+      nid  = rlbox_OBJ_obj2nid(obj);
 #if HAVE_ASN1_STRING_get0_data
-      text = ASN1_STRING_get0_data(data);
+      text = rlbox_ASN1_STRING_get0_data(data);
 #else
       text = ASN1_STRING_data(data);
 #endif
-      Debug3("SSL peer cert %s entry: %s=\"%s\"", (field[0]?field:"subject"), OBJ_nid2ln(nid), text);
+      Debug3("SSL peer cert %s entry: %s=\"%s\"", (field[0]?field:"subject"), rlbox_OBJ_nid2ln(nid), text);
       if (field != NULL && field[0] != '\0') {
-         xiosetenv3("OPENSSL_X509", field, OBJ_nid2ln(nid), (const char *)text, 2, " // ");
+         xiosetenv3("OPENSSL_X509", field, rlbox_OBJ_nid2ln(nid), (const char *)text, 2, " // ");
       } else {
-         xiosetenv2("OPENSSL_X509", OBJ_nid2ln(nid), (const char *)text, 2, " // ");
+         xiosetenv2("OPENSSL_X509", rlbox_OBJ_nid2ln(nid), (const char *)text, 2, " // ");
       }
    }
    return 0;
@@ -1359,17 +1372,17 @@ static bool openssl_check_peername(X509_NAME *name, const char *peername) {
    X509_NAME_ENTRY *entry;
    ASN1_STRING *data;
    const unsigned char *text;
-   ind = X509_NAME_get_index_by_NID(name, NID_commonName, -1);
+   ind = rlbox_X509_NAME_get_index_by_NID(name, NID_commonName, -1);
    if (ind < 0) {
       Info("no COMMONNAME field in peer certificate");	
       return false;
    }
-   entry = X509_NAME_get_entry(name, ind);
-   data = X509_NAME_ENTRY_get_data(entry);
+   entry = rlbox_X509_NAME_get_entry(name, ind);
+   data = rlbox_X509_NAME_ENTRY_get_data(entry);
 #if HAVE_ASN1_STRING_get0_data
-   text = ASN1_STRING_get0_data(data);
+   text = rlbox_ASN1_STRING_get0_data(data);
 #else
-   text = ASN1_STRING_data(data);
+   text = rlbox_ASN1_STRING_data(data);
 #endif
    return openssl_check_name((const char *)text, peername);
 }
@@ -1390,7 +1403,7 @@ static int openssl_handle_peer_certificate(struct single *xfd,
    int extcount, i, ok = 0;
    int status;
 
-   if ((peer_cert = SSL_get_peer_certificate(xfd->para.openssl.ssl)) == NULL) {
+   if ((peer_cert = rlbox_SSL_get_peer_certificate(xfd->para.openssl.ssl)) == NULL) {
       if (opt_ver) {
 	 Msg(level, "no peer certificate");
 	 status = STAT_RETRYLATER;
@@ -1417,38 +1430,41 @@ static int openssl_handle_peer_certificate(struct single *xfd,
 	    Msg1(level, "rejected peer certificate with error %ld", verify_result);
 	 }
 	 status = STAT_RETRYLATER;
-	 X509_free(peer_cert);
+	 rlbox_X509_free(peer_cert);
 	 return STAT_RETRYLATER;
       }
       Info("peer certificate is trusted");
    }
 
    /* set env vars from cert's subject and issuer values */
-   if ((subjectname = X509_get_subject_name(peer_cert)) != NULL) {
+   if ((subjectname = rlbox_X509_get_subject_name(peer_cert)) != NULL) {
+      printf("In the post get_subject_name block\n");
       openssl_setenv_cert_name("subject", subjectname);
       openssl_setenv_cert_fields("", subjectname);
       /*! I'd like to provide dates too; see
 	 http://markmail.org/message/yi4vspp7aeu3xwtu#query:+page:1+mid:jhnl4wklif3pgzqf+state:results */
    }
-   if ((issuername = X509_get_issuer_name(peer_cert)) != NULL) {
+   printf("Got the subject name\n");
+   if ((issuername = rlbox_X509_get_issuer_name(peer_cert)) != NULL) {
+      printf("In the post get_issuer_name block\n");
       openssl_setenv_cert_name("issuer", issuername);
    }
-
+   printf("Got subject and issuer names\n");
    /* check peername against cert's subjectAltName DNS entries */
    /* this code is based on example from Gerhard Gappmeier in
       http://openssl.6102.n7.nabble.com/How-to-extract-subjectAltName-td17236.html
    */
-   if ((extcount = X509_get_ext_count(peer_cert)) > 0) {
+   if ((extcount = rlbox_X509_get_ext_count(peer_cert)) > 0) {
       for (i = 0;  !ok && i < extcount;  ++i) {
 	 const char            *extstr;
 	 X509_EXTENSION        *ext;
 	 const X509V3_EXT_METHOD     *meth;
-	 ext = X509_get_ext(peer_cert, i);
-	 extstr = OBJ_nid2sn(OBJ_obj2nid(X509_EXTENSION_get_object(ext)));
+	 ext = rlbox_X509_get_ext(peer_cert, i);
+	 extstr = rlbox_OBJ_nid2sn(rlbox_OBJ_obj2nid(rlbox_X509_EXTENSION_get_object(ext)));
 	 if (!strcasecmp(extstr, "subjectAltName")) {
 	    void *names;
 	    if (!(meth = X509V3_EXT_get(ext))) break;   
-	    names = X509_get_ext_d2i(peer_cert, NID_subject_alt_name, NULL, NULL);
+	    names = rlbox_X509_get_ext_d2i(peer_cert, NID_subject_alt_name, NULL, NULL);
 	    if (names) {
 	       int numalts;
 	       int i;
@@ -1480,20 +1496,21 @@ pName->d.ia5);
 	 }
       }
    }
+   printf("Checked peername against DNS entries\n");
 
    if (!opt_ver) {
       Notice("option openssl-verify disabled, no check of certificate");
-      X509_free(peer_cert);
+      rlbox_X509_free(peer_cert);
       return STAT_OK;
    }
    if (peername == NULL || peername[0] == '\0') {
       Notice("trusting certificate, no check of commonName");
-      X509_free(peer_cert);
+      rlbox_X509_free(peer_cert);
       return STAT_OK;
    }
    if (ok) {
       Notice("trusting certificate, commonName matches");
-      X509_free(peer_cert);
+      rlbox_X509_free(peer_cert);
       return STAT_OK;
    }
 
@@ -1505,7 +1522,7 @@ pName->d.ia5);
       Notice("trusting certificate, commonName matches");
       status = STAT_OK;
    }
-   X509_free(peer_cert);
+   rlbox_X509_free(peer_cert);
    return status;
 }
 
@@ -1538,7 +1555,7 @@ static int xioSSL_connect(struct single *xfd, const char *opt_commonname,
    /* connect via SSL by performing handshake */
    if ((ret = sycSSL_connect(xfd->para.openssl.ssl)) <= 0) {
       /*if (ERR_peek_error() == 0) Msg(level, "SSL_connect() failed");*/
-      errint = SSL_get_error(xfd->para.openssl.ssl, ret);
+      errint = rlbox_SSL_get_error(xfd->para.openssl.ssl, ret);
       switch (errint) {
       case SSL_ERROR_NONE:
 	 /* this is not an error, but I dare not continue for security reasons*/
@@ -1598,7 +1615,7 @@ ssize_t xioread_openssl(struct single *pipe, void *buff, size_t bufsiz) {
 
    ret = sycSSL_read(pipe->para.openssl.ssl, buff, bufsiz);
    if (ret < 0) {
-      errint = SSL_get_error(pipe->para.openssl.ssl, ret);
+      errint = rlbox_SSL_get_error(pipe->para.openssl.ssl, ret);
       switch (errint) {
       case SSL_ERROR_NONE:
 	 /* this is not an error, but I dare not continue for security reasons*/
@@ -1659,7 +1676,7 @@ ssize_t xiowrite_openssl(struct single *pipe, const void *buff, size_t bufsiz) {
 
    ret = sycSSL_write(pipe->para.openssl.ssl, buff, bufsiz);
    if (ret < 0) {
-      errint = SSL_get_error(pipe->para.openssl.ssl, ret);
+      errint = rlbox_SSL_get_error(pipe->para.openssl.ssl, ret);
       switch (errint) {
       case SSL_ERROR_NONE:
 	 /* this is not an error, but I dare not continue for security reasons*/

@@ -23,7 +23,7 @@ srcdir = .
 
 CC = gcc
 CXX = g++
-CCOPTS = $(CCOPT)
+CCOPTS = $(CCOPT) 
 
 SYSDEFS = 
 CPPFLAGS = -I. 
@@ -44,7 +44,7 @@ MISC_FLAGS:= -Wl,--no-whole-archive -rdynamic #-lpthread -lrt -ldl
 RLBOX_FLAGS:= $(MISC_FLAGS)  $(INCLUDE_FLAGS) 
 
 #0 CFLAGS = -O -D_GNU_SOURCE -Wall -Wno-parentheses $(CCOPTS) $(DEFS) $(INCLS)
-CFLAGS = -O -D_GNU_SOURCE -Wall -Wno-parentheses $(CCOPTS) $(DEFS) $(CPPFLAGS) 
+CFLAGS = -O0 -g -D_GNU_SOURCE -Wall -Wno-parentheses $(CCOPTS) $(DEFS) $(CPPFLAGS) 
 CLIBS = $(LIBS)
 #CLIBS = $(LIBS) -lm -lefence
 XIOSRCS = xioinitialize.c xiohelp.c xioparam.c xiodiag.c xioopen.c xioopts.c \
@@ -133,8 +133,8 @@ filan: $(FILAN_OBJS)
 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(FILAN_OBJS) $(CLIBS)
 
 libxio.a: $(XIOOBJS) $(UTLOBJS)
-	$(CXX) -std=c++17 $(RLBOX_FLAGS) -c -o rlbox_openssl.o rlbox_openssl.cpp
-	$(CXX) -std=c++17 $(RLBOX_FLAGS) -c -E rlbox_openssl.cpp > out.cpp
+#	$(CXX) $(CFLAGS) -std=c++17 -E $(RLBOX_FLAGS) -c rlbox_openssl.cpp > rlbox_openssl_preprocessed.cpp
+	$(CXX) $(CFLAGS) -std=c++17 -Wall -Wextra -Wno-int-to-pointer-cast -Wno-unused-parameter $(RLBOX_FLAGS) -c -o rlbox_openssl.o rlbox_openssl.cpp
 	$(AR) r $@ $(XIOOBJS) $(UTLOBJS) rlbox_openssl.o
 	$(RANLIB) $@
 
